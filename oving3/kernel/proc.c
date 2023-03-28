@@ -830,3 +830,45 @@ void schedset(int id)
     sched_pointer = available_schedulers[id].impl;
     printf("Scheduler successfully changed to %s\n", available_schedulers[id].name);
 }
+struct proc *
+find_proc_by_pid(int pid)
+{
+    struct proc *p;
+
+    for (p = proc; p < &proc[NPROC]; p++)
+    {
+        acquire(&p->lock);
+
+        if (p->pid == pid)
+        {
+            release(&p->lock);
+            return p;
+        }
+
+        release(&p->lock);
+    }
+    return 0;
+}
+
+uint64
+va2pa(uint64 va, int pid)
+{
+    struct proc *p;
+
+    pte_t *pte;
+    uint64 pa = 0;
+
+    p = find_proc_by_pid(pid);
+
+    if (p == 0)
+        return 0;
+
+    acquire(&p->lock);
+
+    pte = walk(p->pagetable, va, 0);
+    pa = PTE2PA(*pte);
+
+    release(&p->lock);
+
+    return pa;
+ }

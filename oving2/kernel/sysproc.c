@@ -114,3 +114,14 @@ uint64 sys_schedset(void)
     schedset(id - 1);
     return 0;
 }
+
+uint64 sys_va2pa(void)
+{
+    uint64 va;
+    int pid;
+
+    argaddr(0, &va);
+    argint(1, &pid);
+
+    return va2pa(va, pid);
+}
