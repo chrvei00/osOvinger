@@ -296,6 +296,91 @@ uvmfree(pagetable_t pagetable, uint64 sz)
   freewalk(pagetable);
 }
 
+//TODO
+int
+uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 sz)
+{
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+
+  for (i = 0; i < sz; i += PGSIZE) {
+    if ((pte = walk(old, i, 0)) == 0) {
+      panic("uvmcopy_cow: pte should exist");
+    }
+    if ((*pte & PTE_V) == 0) {
+      panic("uvmcopy_cow: page not present");
+    }
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte) | PTE_COW; // Add the PTE_COW flag
+    if (mappages(new, i, PGSIZE, pa, flags) != 0) {
+      return -1;
+    }
+    incref(pa); // Increment the reference count for the shared physical page
+  }
+  return 0;
+}
+
+
+//WORKS with this
+int
+uvmcopy_cow(pagetable_t src, pagetable_t dst, uint64 sz)
+{
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+
+  for(i = 0; i < sz; i += PGSIZE){
+    if((pte = walk(src, i, 0)) == 0)
+      panic("uvmcopy_cow: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("uvmcopy_cow: page not present");
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte) & ~PTE_W; // Remove the write permission
+    if(mappages(dst, i, PGSIZE, pa, flags) != 0)
+      return -1;
+    if(mappages(src, i, PGSIZE, pa, flags) != 0)
+      return -1;
+    // Increment the reference count for the physical page
+    incref(pa);
+  }
+  return 0;
+}
+
+void
+handle_cow(pagetable_t pagetable, uint64 va)
+{
+  uint64 pa;
+  pte_t *pte;
+  int flags;
+
+  printf("handle_cow: Entered function\n");
+
+  if((pte = walk(pagetable, va, 0)) == 0)
+    panic("handle_cow: pte should exist");
+
+  if((*pte & PTE_V) == 0)
+    panic("handle_cow: page not present");
+
+  pa = PTE2PA(*pte);
+  flags = PTE_FLAGS(*pte);
+
+  if (getref(pa) == 1) {
+    printf("handle_cow: Granting write access to existing page\n");
+    *pte |= PTE_W;
+  } else {
+    uint64 new_pa = (uint64)kalloc();
+    if (new_pa == 0)
+      panic("handle_cow: out of memory");
+
+    memmove((void *)(new_pa + KERNBASE), (void *)(pa + KERNBASE), PGSIZE);
+    *pte = PA2PTE(new_pa) | (flags & ~PTE_W) | PTE_U | PTE_W;
+
+    decref(pa);
+  }
+  sfence_vma(); // Ensure the new mapping takes effect immediately
+}
+
 // Given a parent process's page table, copy
 // its memory into a child's page table.
 // Copies both the page table and the

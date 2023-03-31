@@ -120,6 +120,9 @@ struct user_proc *ps(uint8 start, uint8 count);
 void schedls(void);
 void schedset(int id);
 uint64 va2pa(uint64 va, int pid);
+void incref(uint64 pa);
+void decref(uint64 pa);
+int getref(uint64 pa);
 
 // swtch.S
 void swtch(struct context *, struct context *);
@@ -187,6 +190,8 @@ uint64 walkaddr(pagetable_t, uint64);
 int copyout(pagetable_t, uint64, char *, uint64);
 int copyin(pagetable_t, char *, uint64, uint64);
 int copyinstr(pagetable_t, char *, uint64, uint64);
+int uvmcopy_cow(pagetable_t, pagetable_t, uint64);
+void handle_cow(pagetable_t, uint64);
 
 // plic.c
 void plicinit(void);

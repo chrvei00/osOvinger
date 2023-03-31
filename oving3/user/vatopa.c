@@ -2,28 +2,26 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-uint64 str_to_uint64(const char *s) {
-    uint64 result = 0;
+uint64 format(const char *s) {
+    uint64 res = 0;
     while (*s != '\0') {
-        result *= 10;
-        result += *s - '0';
+        res *= 10;
+        res += *s - '0';
         s++;
     }
-    return result;
+    return res;
 }
 
 
-int main(int argc, char *argv[]) {
-    if (argc < 2 || argc > 3)
+int main(int c, char *argv[]) {
+    if (c < 2 || c > 3)
     {
-        fprintf(2, "Usage: vatopa virtual_address [pid]\n");
         exit(1);
     }
-
-    uint64 va = str_to_uint64(argv[1]);
+    uint64 lol = format(argv[1]);
 
     int pid;
-    if (argc == 3)
+    if (c == 3)
     {
         pid = atoi(argv[2]);
     }
@@ -32,7 +30,7 @@ int main(int argc, char *argv[]) {
         pid = getpid();
     }
 
-    uint64 pa = va2pa(va, pid);
+    uint64 pa = va2pa(lol, pid);
 
     if (pa == 0)
     {

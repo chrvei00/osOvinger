@@ -20,6 +20,7 @@ extern char end[]; // first address after kernel.
 struct run
 {
     struct run *next;
+    int refcount;
 };
 
 struct
@@ -78,15 +79,47 @@ kalloc(void)
 {
     assert(FREE_PAGES > 0);
     struct run *r;
-
+    
     acquire(&kmem.lock);
     r = kmem.freelist;
-    if (r)
+    if (r) {
         kmem.freelist = r->next;
+        r->refcount = 1;
+    }
     release(&kmem.lock);
 
     if (r)
         memset((char *)r, 5, PGSIZE); // fill with junk
     FREE_PAGES--;
     return (void *)r;
+}
+
+void
+incref(uint64 pa)
+{
+  struct run *r;
+
+  r = (struct run*) (pa - KERNBASE);
+  r->refcount++;
+}
+
+void
+decref(uint64 pa)
+{
+  struct run *r;
+
+  r = (struct run*) (pa - KERNBASE);
+  r->refcount--;
+
+  if(r->refcount == 0)
+    kfree((void*) (pa + KERNBASE));
+}
+
+int
+getref(uint64 pa)
+{
+  struct run *r;
+
+  r = (struct run *) (pa - KERNBASE);
+  return r->refcount;
 }
