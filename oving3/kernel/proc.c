@@ -29,11 +29,9 @@ typedef struct scheduler_impl
 
 // Register all available schedulers here
 // also update schedc, this indicates how long the SchedImpl array is
-#define SCHEDC 2
-static SchedImpl available_schedulers[2] = {
-    {"Round Robin", &rr_scheduler, 1},
-    {"MLFQ Sched", &mlfq_scheduler, 2},
-    };
+#define SCHEDC 1
+static SchedImpl available_schedulers[SCHEDC] = {
+    {"Round Robin", &rr_scheduler, 1}};
 
 void (*sched_pointer)(void) = &rr_scheduler;
 
@@ -382,7 +380,8 @@ int fork(void)
     }
 
     // Copy user memory from parent to child.
-    if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0)
+    // if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) 
+    if(uvmcopy_cow(p->pagetable, np->pagetable, p->sz) < 0) 
     {
         freeproc(np);
         release(&np->lock);
@@ -558,77 +557,35 @@ void rr_scheduler(void)
     struct cpu *c = mycpu();
 
     c->proc = 0;
-    // Avoid deadlock by ensuring that devices can interrupt.
-    intr_on();
-
-    for (p = proc; p < &proc[NPROC]; p++)
+    for (;;)
     {
-        acquire(&p->lock);
-        if (p->state == RUNNABLE)
+        // Avoid deadlock by ensuring that devices can interrupt.
+        intr_on();
+
+        for (p = proc; p < &proc[NPROC]; p++)
         {
-            // Switch to chosen process.  It is the process's job
-            // to release its lock and then reacquire it
-            // before jumping back to us.
-            p->state = RUNNING;
-            c->proc = p;
-            swtch(&c->context, &p->context);
+            acquire(&p->lock);
+            if (p->state == RUNNABLE)
+            {
+                // Switch to chosen process.  It is the process's job
+                // to release its lock and then reacquire it
+                // before jumping back to us.
+                p->state = RUNNING;
+                c->proc = p;
+                swtch(&c->context, &p->context);
+                // check if we are still the right scheduler (or if schedset changed)
+                if (sched_pointer != &rr_scheduler)
+                {
+                    release(&p->lock);
+                    return;
+                }
 
-            // Process is done running for now.
-            // It should have changed its p->state before coming back.
-            c->proc = 0;
-        }
-        release(&p->lock);
-    }
-    // In case a setsched happened, we will switch to the new scheduler after one
-    // Round Robin round has completed.
-}
-
-void mlfq_scheduler(void)
-{
-    struct proc *p;
-    struct cpu *c = mycpu();
-
-    c->proc = 0;
-    // Avoid deadlock by ensuring that devices can interrupt.
-    intr_on();
-
-    for (p = proc; p < &proc[NPROC]; p++)
-    {
-        acquire(&p->lock);
-        if(p->priority == 0 && p->state == RUNNABLE){
-            p->state = RUNNING;
-            c->proc = p;
-            swtch(&c->context, &p->context);
-            c->proc = 0;
-            p->timesRan++;
-            if (p->timesRan >= 10){
-                printf("Process %d has been changed to priority 1 \n", p->pid);
-                p->priority = 1;
+                // Process is done running for now.
+                // It should have changed its p->state before coming back.
+                c->proc = 0;
             }
+            release(&p->lock);
         }
-        if(p->priority == 1 && p->state == RUNNABLE && p->timesRan >= 10){
-            p->state = RUNNING;
-            c->proc = p;
-            swtch(&c->context, &p->context);
-            c->proc = 0;
-            p->timesRan++;
-            if (p->timesRan >= 20){
-                printf("Process %d has been changed to priority 2 \n", p->pid);
-                p->priority = 2;
-            }
-        }
-        if(p->priority == 2 && p->state == RUNNABLE && p->timesRan >= 20){
-            p->state = RUNNING;
-            c->proc = p;
-            swtch(&c->context, &p->context);
-            c->proc = 0;
-            p->timesRan++;
-            if (p->timesRan >= 30){
-                p->priority = 0;
-                p->timesRan = 0;
-            }
-        }
-        release(&p->lock);
     }
 }
 
@@ -874,7 +831,6 @@ void schedset(int id)
     sched_pointer = available_schedulers[id].impl;
     printf("Scheduler successfully changed to %s\n", available_schedulers[id].name);
 }
-
 struct proc *
 find_proc_by_pid(int pid)
 {

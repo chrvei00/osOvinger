@@ -6,6 +6,8 @@
 #include "spinlock.h"
 #include "proc.h"
 
+extern uint64 FREE_PAGES; // kalloc.c keeps track of those
+
 uint64
 sys_exit(void)
 {
@@ -124,4 +126,10 @@ uint64 sys_va2pa(void)
     argint(1, &pid);
 
     return va2pa(va, pid);
+}
+
+uint64 sys_pfreepages(void)
+{
+    printf("%d\n", FREE_PAGES);
+    return 0;
 }

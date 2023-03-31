@@ -10,6 +10,13 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+#define assert(cond)                                        \
+    if (!(cond))                                            \
+    {                                                       \
+        printf("%s@%s:%d\n", __FILE__, __func__, __LINE__); \
+        panic("assert failed");                             \
+    }
+
 // bio.c
 void binit(void);
 struct buf *bread(uint, uint);
@@ -79,7 +86,7 @@ int pipewrite(struct pipe *, uint64, int);
 
 // printf.c
 void printf(char *, ...);
-void panic(char *) __attribute__((noreturn));
+void panic(char *, ...) __attribute__((noreturn));
 void printfinit(void);
 
 // proc.c
@@ -99,7 +106,6 @@ struct proc *myproc();
 void procinit(void);
 void scheduler(void) __attribute__((noreturn));
 void rr_scheduler(void);
-void mlfq_scheduler(void);
 void sched(void);
 void sleep(void *, struct spinlock *);
 void userinit(void);
@@ -114,7 +120,9 @@ struct user_proc *ps(uint8 start, uint8 count);
 void schedls(void);
 void schedset(int id);
 uint64 va2pa(uint64 va, int pid);
-
+void incref(uint64 pa);
+void decref(uint64 pa);
+int getref(uint64 pa);
 
 // swtch.S
 void swtch(struct context *, struct context *);
@@ -182,6 +190,8 @@ uint64 walkaddr(pagetable_t, uint64);
 int copyout(pagetable_t, uint64, char *, uint64);
 int copyin(pagetable_t, char *, uint64, uint64);
 int copyinstr(pagetable_t, char *, uint64, uint64);
+int uvmcopy_cow(pagetable_t, pagetable_t, uint64);
+void handle_cow(pagetable_t, uint64);
 
 // plic.c
 void plicinit(void);
